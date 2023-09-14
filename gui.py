@@ -1,3 +1,4 @@
+import math
 from pygame.locals import *
 import pygame
 from OpenGL.GL import *
@@ -39,17 +40,18 @@ class OpenGLViewport:
         # Adjust the OpenGL viewport to use only the top 80% of the window
         glViewport(
             0,
-            int(0.2 * self.resolution[1]),
+            int(0 * self.resolution[1]),
             self.resolution[0],
-            int(0.8 * self.resolution[1]),
+            int(1 * self.resolution[1]),
         )
-        gluPerspective(45, (self.resolution[0] / (0.8 * self.resolution[1])), 0.1, 50.0)
+        gluPerspective(45, (self.resolution[0] / (1 * self.resolution[1])), 0.1, 50.0)
         glTranslatef(0.0, 0.0, -5)
 
     def render(self):
         glRotatef(1, 3, 1, 1)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-        draw_cube(0.5)
+        
+
 
 
 class TextRenderer:
@@ -67,8 +69,13 @@ class TextRenderer:
         glLoadIdentity()
         
         # Draw the line 60% down the screen
-        line_position = int(0.2 * display[1])
+        line_position = int(0.4 * display[1])
         draw_line(line_position)
+        
+        # Render the artificial horizon
+        draw_artificial_horizon(display[0] // 2, int(0.2 * display[1]), roll_angle=0, pitch_angle=0)
+
+
         
         # Display each text entry in the list
         for text_entry in text_list:
@@ -81,47 +88,6 @@ class TextRenderer:
         glMatrixMode(GL_MODELVIEW)
 
 
-def draw_cube(scale_factor=1.0):
-    # Define vertices for a cube
-    vertices = (
-        (1, -1, -1),
-        (1, 1, -1),
-        (-1, 1, -1),
-        (-1, -1, -1),
-        (1, -1, 1),
-        (1, 1, 1),
-        (-1, -1, 1),
-        (-1, 1, 1),
-    )
-
-    # Define edges that connect the vertices to form the cube
-    edges = (
-        (0, 1),
-        (1, 2),
-        (2, 3),
-        (3, 0),
-        (4, 5),
-        (5, 6),
-        (6, 7),
-        (7, 4),
-        (0, 4),
-        (1, 5),
-        (2, 6),
-        (3, 7),
-    )
-    glPushMatrix()  # Save the current matrix state
-
-    # Apply the scaling transformation
-    glScalef(scale_factor, scale_factor, scale_factor)
-
-    # Original cube drawing code
-    glBegin(GL_LINES)
-    for edge in edges:
-        for vertex in edge:
-            glVertex3fv(vertices[vertex])
-    glEnd()
-
-    glPopMatrix()
 
 
 def draw_line(y_position):
@@ -130,6 +96,73 @@ def draw_line(y_position):
     glVertex2f(0, y_position)
     glVertex2f(display[0], y_position)
     glEnd()
+
+def draw_artificial_horizon(x, y, roll_angle, pitch_angle, radius=100):
+    """
+    Draw an accurate artificial horizon with the ball rotating and pitch markings.
+    """
+    # Calculate the y offset for pitch
+    pitch_offset = pitch_angle * (radius / 30)
+
+    # Set up rotation and translation
+    glPushMatrix()
+    glTranslatef(x, y, 0)
+    glRotatef(roll_angle, 0, 0, 1)  # Rotate around Z-axis
+
+    # Draw sky (blue half)
+    glColor3f(0.53, 0.808, 0.980)
+    glBegin(GL_POLYGON)
+    for i in range(0, 181):
+        angle = i
+        dx = radius * math.cos(math.radians(angle))
+        dy = radius * math.sin(math.radians(angle)) + pitch_offset
+        glVertex2f(dx, dy)
+    glEnd()
+
+    # Draw ground (brown half)
+    glColor3f(0.545, 0.271, 0.075)
+    glBegin(GL_POLYGON)
+    for i in range(180, 361):
+        angle = i
+        dx = radius * math.cos(math.radians(angle))
+        dy = radius * math.sin(math.radians(angle)) + pitch_offset
+        glVertex2f(dx, dy)
+    glEnd()
+
+    # Draw pitch markings
+    glColor3f(1, 1, 1)
+    for offset in range(0, radius+1, int(radius / 30)):  # Every 1 degree
+        length = radius * 0.05 if offset % (2*int(radius / 30)) else radius * 0.1  # Longer lines every 2 degrees
+        glBegin(GL_LINES)
+        glVertex2f(-length, offset)
+        glVertex2f(length, offset)
+        glVertex2f(-length, -offset)
+        glVertex2f(length, -offset)
+        glEnd()
+
+    glPopMatrix()
+
+    # Draw outer boundary circle
+    glColor3f(1, 1, 1)
+    glBegin(GL_LINE_LOOP)
+    for i in range(360):
+        dx = radius * math.cos(math.radians(i))
+        dy = radius * math.sin(math.radians(i))
+        glVertex2f(x + dx, y + dy)
+    glEnd()
+
+    # Draw central aircraft marker
+    glBegin(GL_LINES)
+    glVertex2f(x - radius * 0.1, y)
+    glVertex2f(x + radius * 0.1, y)
+    glVertex2f(x, y - radius * 0.1)
+    glVertex2f(x, y + radius * 0.1)
+    glEnd()
+
+
+
+
+
 
 
 def render_text(x, y, text):
