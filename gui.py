@@ -73,7 +73,7 @@ class TextRenderer:
         draw_line(line_position)
         
         # Render the artificial horizon
-        draw_artificial_horizon(display[0] // 2, int(0.2 * display[1]), roll_angle=0, pitch_angle=0)
+        draw_artificial_horizon(display[0] // 2, int(0.2 * display[1]), roll_angle=0, pitch_angle=0, yaw_angle=0)
 
 
         
@@ -97,17 +97,51 @@ def draw_line(y_position):
     glVertex2f(display[0], y_position)
     glEnd()
 
-def draw_artificial_horizon(x, y, roll_angle, pitch_angle, radius=100):
+def draw_artificial_horizon(x, y, roll_angle, pitch_angle, yaw_angle, radius=100):
+    def draw_yaw_slider(x, y, yaw_angle, width=200, height=20):
+        """
+        Draw the yaw slider below the artificial horizon.
+        """
+        # Draw slider background
+        glColor3f(0.6, 0.6, 0.6)
+        glBegin(GL_QUADS)
+        glVertex2f(x - width / 2, y - height)
+        glVertex2f(x + width / 2, y - height)
+        glVertex2f(x + width / 2, y)
+        glVertex2f(x - width / 2, y)
+        glEnd()
+
+        # Draw slider position for yaw
+        glColor3f(1, 0, 0)  # Red color for the slider position
+        glRectf(x + yaw_angle * (width / 60) - 5, y - height, x + yaw_angle * (width / 60) + 5, y)
+
+        # Draw numbered indicators
+        font = pygame.font.Font(None, 24)
+        for i in range(-30, 31, 10):  # Every 10 degrees
+            pos_x = x + i * (width / 60)
+            glBegin(GL_LINES)
+            glVertex2f(pos_x, y - height)
+            glVertex2f(pos_x, y - height + 10)
+            glEnd()
+
+            text_surface = font.render(str(i), True, (255, 255, 255))
+            text_data = pygame.image.tostring(text_surface, "RGBA", True)
+            glRasterPos2f(pos_x - text_surface.get_width() / 2, y - height - text_surface.get_height())
+            glDrawPixels(text_surface.get_width(), text_surface.get_height(), GL_RGBA, GL_UNSIGNED_BYTE, text_data)
+
+
+
     """
-    Draw an accurate artificial horizon with the ball rotating and pitch markings.
+    Draw an accurate artificial horizon with roll, pitch, and yaw effects.
     """
-    # Calculate the y offset for pitch
+    # Calculate the y offset for pitch and x offset for yaw
     pitch_offset = pitch_angle * (radius / 30)
+    yaw_offset = yaw_angle * (radius / 30)
 
     # Set up rotation and translation
     glPushMatrix()
-    glTranslatef(x, y, 0)
-    glRotatef(roll_angle, 0, 0, 1)  # Rotate around Z-axis
+    glTranslatef(x + yaw_offset, y, 0)  # Apply yaw as lateral translation
+    glRotatef(roll_angle, 0, 0, 1)  # Rotate around Z-axis for roll
 
     # Draw sky (blue half)
     glColor3f(0.53, 0.808, 0.980)
@@ -158,6 +192,8 @@ def draw_artificial_horizon(x, y, roll_angle, pitch_angle, radius=100):
     glVertex2f(x, y - radius * 0.1)
     glVertex2f(x, y + radius * 0.1)
     glEnd()
+    
+    draw_yaw_slider(x, y - radius - 30, yaw_angle)
 
 
 
