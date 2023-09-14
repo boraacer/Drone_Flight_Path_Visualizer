@@ -101,18 +101,44 @@ class TextRenderer:
 
         # Draw the line 60% down the screen
         line_position = int(0.4 * display[1])
-        draw_line(line_position)
+        draw_horizontal_line(line_position)
+
+        draw_vertical_line(0.4, display[1], 0.2 * display[0])
+
+        PITCH = 30
+        ROLL = 20
+        YAW = 45
+
 
         # Render the artificial horizon
         draw_artificial_horizon(
-            display[0] // 2,
-            int(0.2 * display[1]),
+            (display[0] // 2) - 200,
+            int(0.2 * display[1]) + 30,
             textures,
-            roll_angle=0,
-            pitch_angle=0,
-            yaw_angle=0,
+            roll_angle=ROLL,
+            pitch_angle=PITCH,
+            yaw_angle=YAW,
             radius=150,
         )
+
+        # Control Dials
+
+        # Pitch Slider
+        draw_vertical_slider(
+            0.75 * display[0], 0.2 * display[1], PITCH, width=40, height=300
+        )
+        
+        # Roll Slider
+        draw_horizontal_slider(
+            0.6 * display[0], 0.15 * display[1], ROLL, width=300, height=40
+        )
+        
+        # Yaw Slider
+        draw_horizontal_slider(
+            0.6 * display[0], 0.25 * display[1], YAW, width=300, height=40
+        )
+        
+        
 
         # Display each text entry in the list
         for text_entry in text_list:
@@ -125,11 +151,32 @@ class TextRenderer:
         glMatrixMode(GL_MODELVIEW)
 
 
-def draw_line(y_position):
+def draw_horizontal_line(y_position):
     glColor3f(1, 1, 1)  # Set line color to white
     glBegin(GL_LINES)
     glVertex2f(0, y_position)
     glVertex2f(display[0], y_position)
+    glEnd()
+
+
+def draw_vertical_line(stop_percentage, window_height, x_position):
+    """
+    Draws a vertical line that starts at the bottom of the screen and stops
+    at a specified percentage up the screen.
+
+    Args:
+    - stop_percentage (float): The percentage up the screen where the line should stop. In this case, 0.4 for 40%.
+    - window_height (int): The height of the window or screen.
+    - x_position (int): The x position where the line should be drawn.
+    """
+    start_y = 0  # Start at the bottom of the screen
+    end_y = window_height * stop_percentage  # Calculate end point based on percentage
+
+    # OpenGL commands to draw the line
+    glColor3f(1, 1, 1)  # White color
+    glBegin(GL_LINES)
+    glVertex2f(x_position, start_y)
+    glVertex2f(x_position, end_y)
     glEnd()
 
 
@@ -142,7 +189,12 @@ def draw_artificial_horizon(
     """
 
     # Ensure textures are provided
-    if not textures or 'Frame' not in textures or 'Interior' not in textures or 'Ring' not in textures:
+    if (
+        not textures
+        or "Frame" not in textures
+        or "Interior" not in textures
+        or "Ring" not in textures
+    ):
         raise ValueError("Provide textures for Frame, Interior, and Ring")
 
     glEnable(GL_BLEND)
@@ -180,12 +232,16 @@ def draw_artificial_horizon(
     glScalef(2, 2, 1)
     glTranslatef(0, adjusted_pitch, 0)
 
-    glBindTexture(GL_TEXTURE_2D, textures['Interior'])
+    glBindTexture(GL_TEXTURE_2D, textures["Interior"])
     glBegin(GL_QUADS)
-    glTexCoord2f(0, 0); glVertex2f(-radius, -radius)
-    glTexCoord2f(1, 0); glVertex2f(radius, -radius)
-    glTexCoord2f(1, 1); glVertex2f(radius, radius)
-    glTexCoord2f(0, 1); glVertex2f(-radius, radius)
+    glTexCoord2f(0, 0)
+    glVertex2f(-radius, -radius)
+    glTexCoord2f(1, 0)
+    glVertex2f(radius, -radius)
+    glTexCoord2f(1, 1)
+    glVertex2f(radius, radius)
+    glTexCoord2f(0, 1)
+    glVertex2f(-radius, radius)
     glEnd()
     glPopMatrix()
 
@@ -194,22 +250,30 @@ def draw_artificial_horizon(
     glTranslatef(x, y, 0)
     glRotatef(roll_angle, 0, 0, 1)
 
-    glBindTexture(GL_TEXTURE_2D, textures['Frame'])
+    glBindTexture(GL_TEXTURE_2D, textures["Frame"])
     glBegin(GL_QUADS)
-    glTexCoord2f(0, 0); glVertex2f(-radius, -radius)
-    glTexCoord2f(1, 0); glVertex2f(radius, -radius)
-    glTexCoord2f(1, 1); glVertex2f(radius, radius)
-    glTexCoord2f(0, 1); glVertex2f(-radius, radius)
+    glTexCoord2f(0, 0)
+    glVertex2f(-radius, -radius)
+    glTexCoord2f(1, 0)
+    glVertex2f(radius, -radius)
+    glTexCoord2f(1, 1)
+    glVertex2f(radius, radius)
+    glTexCoord2f(0, 1)
+    glVertex2f(-radius, radius)
     glEnd()
     glPopMatrix()
 
     # Render the Ring without any transformations
-    glBindTexture(GL_TEXTURE_2D, textures['Ring'])
+    glBindTexture(GL_TEXTURE_2D, textures["Ring"])
     glBegin(GL_QUADS)
-    glTexCoord2f(0, 0); glVertex2f(x - radius, y - radius)
-    glTexCoord2f(1, 0); glVertex2f(x + radius, y - radius)
-    glTexCoord2f(1, 1); glVertex2f(x + radius, y + radius)
-    glTexCoord2f(0, 1); glVertex2f(x - radius, y + radius)
+    glTexCoord2f(0, 0)
+    glVertex2f(x - radius, y - radius)
+    glTexCoord2f(1, 0)
+    glVertex2f(x + radius, y - radius)
+    glTexCoord2f(1, 1)
+    glVertex2f(x + radius, y + radius)
+    glTexCoord2f(0, 1)
+    glVertex2f(x - radius, y + radius)
     glEnd()
 
     glBindTexture(GL_TEXTURE_2D, 0)  # Unbind texture
@@ -333,6 +397,194 @@ def draw_yaw_slider(x, y, yaw_angle, width=240, height=20):
             glDisable(GL_BLEND)
 
 
+def draw_vertical_slider(x, y, pitch_angle, width=20, height=240):
+    """
+    Draw the pitch slider next to the artificial horizon with static numbers based on a fixed pitch range (-100 to 100).
+    Additionally, display the current pitch_angle value above the slider.
+    """
+    # Draw slider background
+    glColor3f(0.6, 0.6, 0.6)
+    glBegin(GL_QUADS)
+    glVertex2f(x - width, y - height / 2)
+    glVertex2f(x, y - height / 2)
+    glVertex2f(x, y + height / 2)
+    glVertex2f(x - width, y + height / 2)
+    glEnd()
+
+    # Calculate the slider's vertical position based on pitch_angle
+    font = pygame.font.Font(None, 24)
+    spacing = (
+        height / 20
+    )  # Divided by 20 since there are 20 intervals (from -100 to 100 in steps of 10)
+    slider_position_y = y + (pitch_angle * spacing / 10)
+
+    # Draw slider position (centered) based on pitch_angle
+    glColor3f(1, 0, 0)  # Red color for the slider position
+    glRectf(x - width, slider_position_y - 5, x, slider_position_y + 5)
+
+    # Draw static numbered indicators, with fixed range from -100 to 100
+    for i in range(-100, 110, 10):  # 110 is used so 100 is included
+        pos_y = y + (i * spacing / 10)
+
+        # Draw the line indicator
+        glBegin(GL_LINES)
+        glVertex2f(x - width, pos_y)
+        glVertex2f(x - width + 10, pos_y)
+        glEnd()
+
+        # Draw the number
+        text_surface = font.render(str(i), True, (255, 255, 255))
+        text_data = pygame.image.tostring(text_surface, "RGBA", True)
+
+        # Enable blending for text rendering
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+
+        glRasterPos2f(
+            x - width - text_surface.get_width() - 5,
+            pos_y - text_surface.get_height() / 2,
+        )
+        glDrawPixels(
+            text_surface.get_width(),
+            text_surface.get_height(),
+            GL_RGBA,
+            GL_UNSIGNED_BYTE,
+            text_data,
+        )
+
+        # Disable blending
+        glDisable(GL_BLEND)
+
+    # Display the current pitch_angle value above the slider
+    pitch_angle_str = "{:.2f}".format(pitch_angle)
+
+    # Color based on the value of pitch_angle
+    if pitch_angle > 0:
+        text_color = (0, 255, 0)  # Green
+    elif pitch_angle < 0:
+        text_color = (255, 0, 0)  # Red
+    else:
+        text_color = (0, 255, 255)  # Blue
+
+    pitch_angle_surface = font.render(pitch_angle_str, True, text_color)
+    pitch_angle_data = pygame.image.tostring(pitch_angle_surface, "RGBA", True)
+
+    # Calculate position for the text
+    text_x = (x - width - pitch_angle_surface.get_width() / 2) + 20
+    text_y = (y + height / 2) + 5
+
+    # Render the outline by drawing the text multiple times with slight offsets
+    outline_color = (0, 0, 0)  # Black for the outline
+    offsets = [(-1, -1), (-1, 1), (1, -1), (1, 1)]
+
+    glEnable(GL_BLEND)
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+
+    for offset_x, offset_y in offsets:
+        outline_surface = font.render(pitch_angle_str, True, outline_color)
+        outline_data = pygame.image.tostring(outline_surface, "RGBA", True)
+
+        glRasterPos2f(text_x + offset_x, text_y + offset_y)
+        glDrawPixels(
+            pitch_angle_surface.get_width(),
+            pitch_angle_surface.get_height(),
+            GL_RGBA,
+            GL_UNSIGNED_BYTE,
+            outline_data,
+        )
+
+    # Render the main text over the outline
+    glRasterPos2f(text_x, text_y)
+    glDrawPixels(
+        pitch_angle_surface.get_width(),
+        pitch_angle_surface.get_height(),
+        GL_RGBA,
+        GL_UNSIGNED_BYTE,
+        pitch_angle_data,
+    )
+
+    glDisable(GL_BLEND)
+
+def draw_horizontal_slider(x, y, pitch_angle, width=240, height=20):
+    """
+    Draw the horizontal pitch slider next to the artificial horizon with numbers based on pitch angle.
+    """
+    # Ensure pitch_angle is clamped between -100 and 100
+    pitch_angle = max(-100, min(100, pitch_angle))
+
+    # Draw slider background
+    glColor3f(0.6, 0.6, 0.6)
+    glBegin(GL_QUADS)
+    glVertex2f(x - width / 2, y - height)
+    glVertex2f(x + width / 2, y - height)
+    glVertex2f(x + width / 2, y)
+    glVertex2f(x - width / 2, y)
+    glEnd()
+
+    # Calculate position for the red bar based on pitch_angle
+    pos_x = x + (pitch_angle * (width / 2) / 100)
+
+    # Draw slider position (centered)
+    glColor3f(1, 0, 0)  # Red color for the slider position
+    glRectf(pos_x - 5, y - height, pos_x + 5, y)
+
+    # Draw numbered indicators
+    font = pygame.font.Font(None, 24)
+    spacing = width / 10  # Adjust as needed for intervals of 20
+
+    for i in range(-100, 120, 20):  # From -100 to 100 in steps of 20
+        pos_x_indicator = x + (i * width / 200)
+        glBegin(GL_LINES)
+        glVertex2f(pos_x_indicator, y - height)
+        glVertex2f(pos_x_indicator, y - height + 10)
+        glEnd()
+
+        text_surface = font.render(str(i), True, (255, 255, 255))
+        text_data = pygame.image.tostring(text_surface, "RGBA", True)
+
+        # Enable blending
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+
+        glRasterPos2f(
+            pos_x_indicator - text_surface.get_width() / 2,
+            y - height - text_surface.get_height() - 5,
+        )
+        glDrawPixels(
+            text_surface.get_width(),
+            text_surface.get_height(),
+            GL_RGBA,
+            GL_UNSIGNED_BYTE,
+            text_data,
+        )
+
+        # Disable blending
+        glDisable(GL_BLEND)
+
+    # Display the current pitch_angle value above the slider
+    pitch_angle_str = "{:.2f}".format(pitch_angle)
+    if pitch_angle > 0:
+        text_color = (0, 255, 0)  # Green
+    elif pitch_angle < 0:
+        text_color = (255, 0, 0)  # Red
+    else:
+        text_color = (0, 255, 255)  # Blue
+    
+    pitch_angle_surface = font.render(pitch_angle_str, True, text_color)
+    pitch_angle_data = pygame.image.tostring(pitch_angle_surface, "RGBA", True)
+
+    # Calculate position for the text (above the slider)
+    text_x = x - pitch_angle_surface.get_width() / 2
+    text_y = (y - height - pitch_angle_surface.get_height() - 10) + 75
+
+    # Render the text
+    glEnable(GL_BLEND)
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+    glRasterPos2f(text_x, text_y)
+    glDrawPixels(pitch_angle_surface.get_width(), pitch_angle_surface.get_height(), GL_RGBA, GL_UNSIGNED_BYTE, pitch_angle_data)
+    glDisable(GL_BLEND)
+
+
 def render_text(x, y, text):
     glColor3f(1, 1, 1)  # Set color to white
     glRasterPos2f(x, y)
@@ -382,11 +634,25 @@ def main():
 
         opengl_viewport.render()
 
-        # Create a list of text entries: (x, y, text)
+        # Statuses
+        def status_color(status):
+            if status == "OK":
+                return (0, 255, 0) # Green
+            else:
+                return (255, 0, 0) # Red
+            
+            
+        connection_color = (255, 0, 0)  # Red
+        Status_X_Pos = int(0.35 * display[1]) - 10
         text_entries = [
-            (10, int(0.1 * display[1]), "Sample Data Here"),
-            (10, display[1] - 20, f"FPS: {clock.get_fps():.2f}"),
+            (10, Status_X_Pos + 0, f"Launcher Connection: "),
+            (200, int(0.35 * display[1]), "OK", status_color("OK")),
+            (10, Status_X_Pos + 15, f"Joystick Connection: {'OK'}"),
+            (10, Status_X_Pos + 30, f"Radio Service Connection: {'OK'}"),
+            (10, Status_X_Pos + 45, f"Drone Connection: {'OK'}"),
         ]
+        
+        text_entries.append((10, display[1] - 20, f"FPS: {clock.get_fps():.2f}"))
         text_renderer.render(text_entries, textures)
 
         pygame.display.flip()
