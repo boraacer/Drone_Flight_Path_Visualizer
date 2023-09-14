@@ -109,7 +109,6 @@ class TextRenderer:
         ROLL = 20
         YAW = 45
 
-
         # Render the artificial horizon
         draw_artificial_horizon(
             (display[0] // 2) - 200,
@@ -127,23 +126,22 @@ class TextRenderer:
         draw_vertical_slider(
             0.75 * display[0], 0.2 * display[1], PITCH, width=40, height=300
         )
-        
+
         # Roll Slider
         draw_horizontal_slider(
             0.6 * display[0], 0.15 * display[1], ROLL, width=300, height=40
         )
-        
+
         # Yaw Slider
         draw_horizontal_slider(
             0.6 * display[0], 0.25 * display[1], YAW, width=300, height=40
         )
-        
-        
 
         # Display each text entry in the list
         for text_entry in text_list:
-            x, y, text = text_entry
-            render_text(x, y, text)
+            x, y, text, color = text_entry
+
+            render_text(x, y, text, color)
 
         glPopMatrix()
         glMatrixMode(GL_PROJECTION)
@@ -505,6 +503,7 @@ def draw_vertical_slider(x, y, pitch_angle, width=20, height=240):
 
     glDisable(GL_BLEND)
 
+
 def draw_horizontal_slider(x, y, pitch_angle, width=240, height=20):
     """
     Draw the horizontal pitch slider next to the artificial horizon with numbers based on pitch angle.
@@ -569,7 +568,7 @@ def draw_horizontal_slider(x, y, pitch_angle, width=240, height=20):
         text_color = (255, 0, 0)  # Red
     else:
         text_color = (0, 255, 255)  # Blue
-    
+
     pitch_angle_surface = font.render(pitch_angle_str, True, text_color)
     pitch_angle_data = pygame.image.tostring(pitch_angle_surface, "RGBA", True)
 
@@ -581,12 +580,18 @@ def draw_horizontal_slider(x, y, pitch_angle, width=240, height=20):
     glEnable(GL_BLEND)
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
     glRasterPos2f(text_x, text_y)
-    glDrawPixels(pitch_angle_surface.get_width(), pitch_angle_surface.get_height(), GL_RGBA, GL_UNSIGNED_BYTE, pitch_angle_data)
+    glDrawPixels(
+        pitch_angle_surface.get_width(),
+        pitch_angle_surface.get_height(),
+        GL_RGBA,
+        GL_UNSIGNED_BYTE,
+        pitch_angle_data,
+    )
     glDisable(GL_BLEND)
 
 
-def render_text(x, y, text):
-    glColor3f(1, 1, 1)  # Set color to white
+def render_text(x, y, text, color):
+    glColor3f(*color)
     glRasterPos2f(x, y)
     for character in text:
         glutBitmapCharacter(GLUT_BITMAP_8_BY_13, ord(character))
@@ -637,22 +642,23 @@ def main():
         # Statuses
         def status_color(status):
             if status == "OK":
-                return (0, 255, 0) # Green
+                return (0, 255, 0)  # Green
             else:
-                return (255, 0, 0) # Red
-            
-            
+                return (255, 0, 0)  # Red
+
         connection_color = (255, 0, 0)  # Red
         Status_X_Pos = int(0.35 * display[1]) - 10
         text_entries = [
-            (10, Status_X_Pos + 0, f"Launcher Connection: "),
-            (200, int(0.35 * display[1]), "OK", status_color("OK")),
-            (10, Status_X_Pos + 15, f"Joystick Connection: {'OK'}"),
-            (10, Status_X_Pos + 30, f"Radio Service Connection: {'OK'}"),
-            (10, Status_X_Pos + 45, f"Drone Connection: {'OK'}"),
+            (10, Status_X_Pos + 0, "Launcher Connection:", (255, 255, 255)),
+            (10, Status_X_Pos + 0, "OK", status_color("OK")),
+            (10, Status_X_Pos + 15, "Joystick Connection: ", (255, 255, 255)),
+            (10, Status_X_Pos + 30, "Radio Service Connection:", (255, 255, 255)),
+            (10, Status_X_Pos + 45, "Drone Connection:", (255, 255, 255)),
         ]
-        
-        text_entries.append((10, display[1] - 20, f"FPS: {clock.get_fps():.2f}"))
+
+        text_entries.append(
+            (10, display[1] - 20, f"FPS: {clock.get_fps():.2f}", (0, 255, 0))
+        )
         text_renderer.render(text_entries, textures)
 
         pygame.display.flip()
