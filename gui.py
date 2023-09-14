@@ -49,7 +49,7 @@ class OpenGLViewport:
     def render(self):
         glRotatef(1, 3, 1, 1)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-        draw_cube()
+        draw_cube(0.5)
 
 
 class TextRenderer:
@@ -65,7 +65,11 @@ class TextRenderer:
         glMatrixMode(GL_MODELVIEW)
         glPushMatrix()
         glLoadIdentity()
-
+        
+        # Draw the line 60% down the screen
+        line_position = int(0.2 * display[1])
+        draw_line(line_position)
+        
         # Display each text entry in the list
         for text_entry in text_list:
             x, y, text = text_entry
@@ -77,7 +81,7 @@ class TextRenderer:
         glMatrixMode(GL_MODELVIEW)
 
 
-def draw_cube():
+def draw_cube(scale_factor=1.0):
     # Define vertices for a cube
     vertices = (
         (1, -1, -1),
@@ -105,11 +109,26 @@ def draw_cube():
         (2, 6),
         (3, 7),
     )
+    glPushMatrix()  # Save the current matrix state
 
+    # Apply the scaling transformation
+    glScalef(scale_factor, scale_factor, scale_factor)
+
+    # Original cube drawing code
     glBegin(GL_LINES)
     for edge in edges:
         for vertex in edge:
             glVertex3fv(vertices[vertex])
+    glEnd()
+
+    glPopMatrix()
+
+
+def draw_line(y_position):
+    glColor3f(1, 1, 1)  # Set line color to white
+    glBegin(GL_LINES)
+    glVertex2f(0, y_position)
+    glVertex2f(display[0], y_position)
     glEnd()
 
 
