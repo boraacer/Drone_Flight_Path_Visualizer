@@ -9,6 +9,8 @@ from OpenGL.GLUT import *
 from OpenGL.GLU import gluPerspective
 import websocket
 import threading
+import argparse
+
 
 display = (1920, 1200)
 
@@ -46,31 +48,52 @@ def load_texture(filename):
 
 
 class Config:
-    def __init__(self, filename="", fps=30, resolution=(1920, 1200), fullscreen=False, launcher_host="localhost:5128"):
-        self.fps = fps
-        self.resolution = resolution
-        self.fullscreen = fullscreen
-        self.launcher_host = launcher_host
+    def __init__(self):
+        self.fps = 30
+        self.resolution = (1920, 1200)
+        self.fullscreen = False
+        self.launcher_host = "localhost:5128"
 
-        # Read from file
-        self._load_from_file(filename)
+    def parse_command_line_args(self):
+        parser = argparse.ArgumentParser(
+            description="Configuration options for your program"
+        )
 
-    def _load_from_file(self, filename):
-        try:
-            with open(filename, "r") as f:
-                lines = f.readlines()
-                for line in lines:
-                    if line.startswith("FPS="):
-                        self.fps = int(line.split("=")[1].strip())
-                    elif line.startswith("RESOLUTION="):
-                        res = line.split("=")[1].strip().split("x")
-                        self.resolution = (int(res[0]), int(res[1]))
-                    elif line.startswith("FULLSCREEN="):
-                        self.fullscreen = line.split("=")[1].strip().lower() == "true"
-                    elif line.startswith("LAUNCHER_HOST="):
-                        self.launcher_host = line.split("=")[1].strip()
-        except Exception as e:
-            print(f"Error loading config: {e}\n Connecting to localhost:5128")
+        # Define command-line arguments
+        parser.add_argument("--fps", type=int, default=30, help="Frames per second")
+        parser.add_argument(
+            "--resolution",
+            type=str,
+            default="1920x1200",
+            help="Screen resolution in the format WIDTHxHEIGHT",
+        )
+        parser.add_argument(
+            "--fullscreen", action="store_true", help="Enable fullscreen mode"
+        )
+        parser.add_argument(
+            "--launcher-host",
+            type=str,
+            default="localhost:5128",
+            help="Launcher host address",
+        )
+
+        args = parser.parse_args()
+
+        # Update instance variables with command-line arguments
+        self.fps = args.fps
+        width, height = map(int, args.resolution.split("x"))
+        self.resolution = (width, height)
+        self.fullscreen = args.fullscreen
+        self.launcher_host = args.launcher_host
+
+    def __str__(self):
+        return f"FPS={self.fps}\nRESOLUTION={self.resolution[0]}x{self.resolution[1]}\nFULLSCREEN={'true' if self.fullscreen else 'false'}\nLAUNCHER_HOST={self.launcher_host}"
+
+
+if __name__ == "__main__":
+    config = Config()
+    config.parse_command_line_args()
+    print(config)
 
 
 class WebSocketClient:
@@ -130,7 +153,7 @@ class WebSocketClient:
             self.ping_time = 0
             return f"{int(ping_time)} ms"
         else:
-            return("ERROR")
+            return "ERROR"
 
 
 class OpenGLViewport:
@@ -658,6 +681,7 @@ def draw_horizontal_slider(x, y, pitch_angle, width=240, height=20):
 
 from OpenGL.GLUT import GLUT_BITMAP_8_BY_13
 
+
 def render_text(x, y, text, color):
     glColor3f(*color)
     glRasterPos2f(x, y)
@@ -691,9 +715,11 @@ def status_text(renderer, textures, clock, connection):
 
 def main():
     pygame.init()
-    pygame.display.set_icon(pygame.image.load('assets/Visualizer_Icon.png'))
+    pygame.display.set_icon(pygame.image.load("assets/Visualizer_Icon.png"))
 
     config = Config()
+    config.parse_command_line_args()
+    
     display = config.resolution
 
     pygame.display.gl_set_attribute(
@@ -734,7 +760,6 @@ def main():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-        
 
         status_text(text_renderer, textures, clock, launcherConnection)
 
@@ -742,5 +767,6 @@ def main():
 
         # Limit the frame rate
         clock.tick(target_fps)
+
 
 main()
