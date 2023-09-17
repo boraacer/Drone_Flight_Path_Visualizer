@@ -1,6 +1,6 @@
 import pygame
-import gui
+import visualizer
 
 if __name__ == "__main__":
     pygame.init()
-    gui.main()
+    visualizer.main()

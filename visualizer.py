@@ -1,10 +1,14 @@
+import json
 import math
+import time
 from pygame.locals import *
 import pygame
 from PIL import Image
 from OpenGL.GL import *
 from OpenGL.GLUT import *
 from OpenGL.GLU import gluPerspective
+import websocket
+import threading
 
 display = (1920, 1200)
 
@@ -42,11 +46,11 @@ def load_texture(filename):
 
 
 class Config:
-    def __init__(self, filename="config.txt"):
-        # Default values
-        self.fps = 60
-        self.resolution = (1920, 1200)
-        self.fullscreen = True
+    def __init__(self, filename="", fps=30, resolution=(1920, 1200), fullscreen=False, launcher_host="localhost:5128"):
+        self.fps = fps
+        self.resolution = resolution
+        self.fullscreen = fullscreen
+        self.launcher_host = launcher_host
 
         # Read from file
         self._load_from_file(filename)
@@ -63,8 +67,70 @@ class Config:
                         self.resolution = (int(res[0]), int(res[1]))
                     elif line.startswith("FULLSCREEN="):
                         self.fullscreen = line.split("=")[1].strip().lower() == "true"
+                    elif line.startswith("LAUNCHER_HOST="):
+                        self.launcher_host = line.split("=")[1].strip()
         except Exception as e:
-            print(f"Error loading config: {e}")
+            print(f"Error loading config: {e}\n Connecting to localhost:5128")
+
+
+class WebSocketClient:
+    def __init__(self, url):
+        self.url = url
+        self.ws = None
+        self.connected = False
+        self.message = ""
+
+    def data(self):
+        return json.loads(self.message)
+
+    def on_open(self, ws):
+        self.connected = True
+        print("WebSocket connection opened")
+
+    def on_message(self, ws, message):
+        print(f"Received message: {message}")
+        self.message = message
+
+    def on_error(self, ws, error):
+        print(f"Error occurred: {error}")
+
+    def on_close(self, ws, close_status_code, close_msg):
+        self.connected = False
+        print(f"WebSocket connection closed with code {close_status_code}: {close_msg}")
+
+    def connect(self):
+        self.ws = websocket.WebSocketApp(
+            self.url,
+            on_open=self.on_open,
+            on_message=self.on_message,
+            on_error=self.on_error,
+            on_close=self.on_close,
+        )
+        wst = threading.Thread(target=self.ws.run_forever)
+        wst.daemon = True
+        wst.start()
+
+    def send_message(self, message):
+        if self.connected:
+            self.ws.send(message)
+        else:
+            print("WebSocket is not connected. Cannot send message.")
+
+    def close(self):
+        if self.connected:
+            self.ws.close()
+
+    def ping(self):
+        if self.connected:
+            start_time = time.time()
+            self.ws.send("ping")
+            while not self.ping_time:
+                time.sleep(0.001)
+            ping_time = time.time() - start_time
+            self.ping_time = 0
+            return f"{int(ping_time)} ms"
+        else:
+            return("ERROR")
 
 
 class OpenGLViewport:
@@ -590,6 +656,8 @@ def draw_horizontal_slider(x, y, pitch_angle, width=240, height=20):
     glDisable(GL_BLEND)
 
 
+from OpenGL.GLUT import GLUT_BITMAP_8_BY_13
+
 def render_text(x, y, text, color):
     glColor3f(*color)
     glRasterPos2f(x, y)
@@ -597,7 +665,34 @@ def render_text(x, y, text, color):
         glutBitmapCharacter(GLUT_BITMAP_8_BY_13, ord(character))
 
 
+def status_text(renderer, textures, clock, connection):
+    def status_color(status):
+        if status == "ERROR":
+            return (255, 0, 0)  # Red
+        return (0, 255, 0)  # Green
+
+    Status_X_Pos = int(0.35 * display[1]) + 37
+    text_entries = [
+        (10, Status_X_Pos - 0, "Launcher Connection:", (255, 255, 255)),
+        (300, Status_X_Pos - 0, connection.ping(), status_color(connection.ping())),
+        (10, Status_X_Pos - 15, "   Joystick Connection: ", (255, 255, 255)),
+        (300, Status_X_Pos - 15, "OK", status_color("OK")),
+        (10, Status_X_Pos - 30, "   Radio Service Connection:", (255, 255, 255)),
+        (300, Status_X_Pos - 30, "OK", status_color("OK")),
+        (10, Status_X_Pos - 45, "       Drone Connection:", (255, 255, 255)),
+        (300, Status_X_Pos - 45, "OK", status_color("OK")),
+    ]
+
+    text_entries.append(
+        (10, display[1] - 20, f"FPS: {clock.get_fps():.2f}", (0, 255, 0))
+    )
+    renderer.render(text_entries, textures)
+
+
 def main():
+    pygame.init()
+    pygame.display.set_icon(pygame.image.load('assets/Visualizer_Icon.png'))
+
     config = Config()
     display = config.resolution
 
@@ -630,38 +725,22 @@ def main():
     clock = pygame.time.Clock()
     target_fps = config.fps
 
-    while True:
+    # Create a WebSocketClient object to connect to the launcher
+    launcherConnection = WebSocketClient(f"ws://{config.launcher_host}/client")
+    running = True
+    opengl_viewport.render()
+    while running:
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                pygame.quit()
-                quit()
+                running = False
+        
 
-        opengl_viewport.render()
-
-        # Statuses
-        def status_color(status):
-            if status == "OK":
-                return (0, 255, 0)  # Green
-            else:
-                return (255, 0, 0)  # Red
-
-        connection_color = (255, 0, 0)  # Red
-        Status_X_Pos = int(0.35 * display[1]) - 10
-        text_entries = [
-            (10, Status_X_Pos + 0, "Launcher Connection:", (255, 255, 255)),
-            (10, Status_X_Pos + 0, "OK", status_color("OK")),
-            (10, Status_X_Pos + 15, "Joystick Connection: ", (255, 255, 255)),
-            (10, Status_X_Pos + 30, "Radio Service Connection:", (255, 255, 255)),
-            (10, Status_X_Pos + 45, "Drone Connection:", (255, 255, 255)),
-        ]
-
-        text_entries.append(
-            (10, display[1] - 20, f"FPS: {clock.get_fps():.2f}", (0, 255, 0))
-        )
-        text_renderer.render(text_entries, textures)
+        status_text(text_renderer, textures, clock, launcherConnection)
 
         pygame.display.flip()
 
         # Limit the frame rate
         clock.tick(target_fps)
+
+main()
