@@ -12,7 +12,7 @@ import threading
 import argparse
 
 
-display = (1920, 1200)
+DEBUG = "Visualizer: "
 
 
 def load_texture(filename):
@@ -52,7 +52,7 @@ class Config:
         self.fps = 30
         self.resolution = (1920, 1200)
         self.fullscreen = False
-        self.launcher_host = "localhost:5128"
+        self.launcher_host = "localhost:8765"
 
     def parse_command_line_args(self):
         parser = argparse.ArgumentParser(
@@ -90,10 +90,7 @@ class Config:
         return f"FPS={self.fps}\nRESOLUTION={self.resolution[0]}x{self.resolution[1]}\nFULLSCREEN={'true' if self.fullscreen else 'false'}\nLAUNCHER_HOST={self.launcher_host}"
 
 
-if __name__ == "__main__":
-    config = Config()
-    config.parse_command_line_args()
-    print(config)
+config = Config()
 
 
 class WebSocketClient:
@@ -102,26 +99,33 @@ class WebSocketClient:
         self.ws = None
         self.connected = False
         self.message = ""
+        self.last_ping_time = "ERROR"
 
-    def data(self):
-        return json.loads(self.message)
+        self.connect()
 
     def on_open(self, ws):
         self.connected = True
-        print("WebSocket connection opened")
+        print(DEBUG + "WebSocket connection opened")
 
     def on_message(self, ws, message):
-        print(f"Received message: {message}")
-        self.message = message
+        try:
+            print(DEBUG + f"Received message: {message}")
+            # process the message here
+        except Exception as e:
+            print(DEBUG + f"Error processing message: {e}")
 
     def on_error(self, ws, error):
-        print(f"Error occurred: {error}")
+        print(DEBUG + f"Error occurred: {error}")
 
     def on_close(self, ws, close_status_code, close_msg):
         self.connected = False
-        print(f"WebSocket connection closed with code {close_status_code}: {close_msg}")
+        print(
+            DEBUG
+            + f"WebSocket connection closed with code {close_status_code}: {close_msg}"
+        )
 
     def connect(self):
+        print(DEBUG + f"Connecting to {self.url}")
         self.ws = websocket.WebSocketApp(
             self.url,
             on_open=self.on_open,
@@ -129,6 +133,7 @@ class WebSocketClient:
             on_error=self.on_error,
             on_close=self.on_close,
         )
+
         wst = threading.Thread(target=self.ws.run_forever)
         wst.daemon = True
         wst.start()
@@ -137,23 +142,29 @@ class WebSocketClient:
         if self.connected:
             self.ws.send(message)
         else:
-            print("WebSocket is not connected. Cannot send message.")
+            print(DEBUG + "WebSocket is not connected. Cannot send message.")
 
     def close(self):
         if self.connected:
             self.ws.close()
 
     def ping(self):
-        if self.connected:
-            start_time = time.time()
-            self.ws.send("ping")
-            while not self.ping_time:
-                time.sleep(0.001)
-            ping_time = time.time() - start_time
-            self.ping_time = 0
-            return f"{int(ping_time)} ms"
-        else:
+        if not self.connected or self.last_ping_time == "ERROR":
+            print("WebSocket is not connected. Cannot ping server.")
             return "ERROR"
+        
+        current_time = time.time()
+
+        # Check if it's been at least a second since the last ping
+        if current_time - self.last_ping_time < 1:
+            print("Ping request too soon. Wait for at least 1 second between pings.")
+            return self.last_ping_time
+
+        
+
+
+        # Return the ping time
+        return 0
 
 
 class OpenGLViewport:
@@ -189,10 +200,10 @@ class TextRenderer:
         glLoadIdentity()
 
         # Draw the line 60% down the screen
-        line_position = int(0.4 * display[1])
+        line_position = int(0.4 * config.resolution[1])
         draw_horizontal_line(line_position)
 
-        draw_vertical_line(0.4, display[1], 0.2 * display[0])
+        draw_vertical_line(0.4, config.resolution[1], 0.2 * config.resolution[0])
 
         PITCH = 30
         ROLL = 20
@@ -200,8 +211,8 @@ class TextRenderer:
 
         # Render the artificial horizon
         draw_artificial_horizon(
-            (display[0] // 2) - 200,
-            int(0.2 * display[1]) + 30,
+            (config.resolution[0] // 2) - 200,
+            int(0.2 * config.resolution[1]) + 30,
             textures,
             roll_angle=ROLL,
             pitch_angle=PITCH,
@@ -213,17 +224,29 @@ class TextRenderer:
 
         # Pitch Slider
         draw_vertical_slider(
-            0.75 * display[0], 0.2 * display[1], PITCH, width=40, height=300
+            0.75 * config.resolution[0],
+            0.2 * config.resolution[1],
+            PITCH,
+            width=40,
+            height=300,
         )
 
         # Roll Slider
         draw_horizontal_slider(
-            0.6 * display[0], 0.15 * display[1], ROLL, width=300, height=40
+            0.6 * config.resolution[0],
+            0.15 * config.resolution[1],
+            ROLL,
+            width=300,
+            height=40,
         )
 
         # Yaw Slider
         draw_horizontal_slider(
-            0.6 * display[0], 0.25 * display[1], YAW, width=300, height=40
+            0.6 * config.resolution[0],
+            0.25 * config.resolution[1],
+            YAW,
+            width=300,
+            height=40,
         )
 
         # Display each text entry in the list
@@ -242,7 +265,7 @@ def draw_horizontal_line(y_position):
     glColor3f(1, 1, 1)  # Set line color to white
     glBegin(GL_LINES)
     glVertex2f(0, y_position)
-    glVertex2f(display[0], y_position)
+    glVertex2f(config.resolution[0], y_position)
     glEnd()
 
 
@@ -695,10 +718,16 @@ def status_text(renderer, textures, clock, connection):
             return (255, 0, 0)  # Red
         return (0, 255, 0)  # Green
 
-    Status_X_Pos = int(0.35 * display[1]) + 37
+
+    Status_X_Pos = int(0.35 * config.resolution[1]) + 37
     text_entries = [
         (10, Status_X_Pos - 0, "Launcher Connection:", (255, 255, 255)),
-        (300, Status_X_Pos - 0, connection.ping(), status_color(connection.ping())),
+        (
+            300,
+            Status_X_Pos - 0,
+            str(connection.ping()),
+            status_color(str(connection.ping())),
+        ),
         (10, Status_X_Pos - 15, "   Joystick Connection: ", (255, 255, 255)),
         (300, Status_X_Pos - 15, "OK", status_color("OK")),
         (10, Status_X_Pos - 30, "   Radio Service Connection:", (255, 255, 255)),
@@ -708,7 +737,7 @@ def status_text(renderer, textures, clock, connection):
     ]
 
     text_entries.append(
-        (10, display[1] - 20, f"FPS: {clock.get_fps():.2f}", (0, 255, 0))
+        (10, config.resolution[1] - 20, f"FPS: {clock.get_fps():.2f}", (0, 255, 0))
     )
     renderer.render(text_entries, textures)
 
@@ -717,9 +746,8 @@ def main():
     pygame.init()
     pygame.display.set_icon(pygame.image.load("assets/Visualizer_Icon.png"))
 
-    config = Config()
     config.parse_command_line_args()
-    
+
     display = config.resolution
 
     pygame.display.gl_set_attribute(
@@ -752,7 +780,8 @@ def main():
     target_fps = config.fps
 
     # Create a WebSocketClient object to connect to the launcher
-    launcherConnection = WebSocketClient(f"ws://{config.launcher_host}/client")
+    print(DEBUG + f"Connecting to launcher at {config.launcher_host}")
+    launcherConnection = WebSocketClient(f"ws://{config.launcher_host}")
     running = True
     opengl_viewport.render()
     while running:

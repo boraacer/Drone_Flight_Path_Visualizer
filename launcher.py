@@ -1,6 +1,8 @@
 import asyncio
 import os
 import signal
+import socket
+import threading
 import tkinter as tk
 from tkinter import ttk, StringVar
 from tkinter import *
@@ -9,7 +11,7 @@ import tkinter.filedialog as FD
 from PIL import Image, ImageOps, ImageTk
 import time
 import subprocess
-
+import relay
 
 TITLE_FONT = ("Verdana", 24)
 LARGE_FONT = ("Verdana", 12)
@@ -19,13 +21,20 @@ backGround = "black"
 windowSizeX = 360
 windowSizeY = 600
 
+RelayServer = None
+
+DEBUG = "Visualizer: "
 
 def on_closing():
     if visualizer.running:
         if messagebox.askokcancel("Exit", "Open Proccess, do you really want to exit?"):
-            visualizer.stop_visualizer()
+            RelayServer.stop_visualizer()
+            relay.stop()
             app.destroy()
-    app.destroy()
+    else:
+        RelayServer.stop()
+        app.destroy()
+        
 
 
 def invert_image_color(image_path):
@@ -56,24 +65,43 @@ def combine_funcs(*funcs):
     return combined_func
 
 
+def find_open_port():
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("", 0))  # Bind to a free port provided by the host.
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        return s.getsockname()[1]  # Return the port number assigned.
+
+
 class Config:
+    def host(self):
+        return self.launcher_host.split(":")[0]
+
+    def port(self):
+        return int(self.launcher_host.split(":")[1])
+
     def __init__(
         self,
         filename="config.txt",
         fps=30,
         resolution=(1920, 1200),
         fullscreen=False,
-        launcher_host="localhost:5128",
+        launcher_host="RANDOM",
     ):
         self.filename = filename
         self.fps = fps
         self.resolution = resolution
         self.fullscreen = fullscreen
-        self.launcher_host = launcher_host
 
         # Read from file or generate a new file if it doesn't exist
         if not self._load_from_file():
             self._generate_default_file()
+
+        # Generate a random port if the launcher host is set to RANDOM
+        if launcher_host == "RANDOM":
+            self.launcher_host = f"localhost:{find_open_port()}"
+        else:
+            self.launcher_host = launcher_host
+        
 
     def _load_from_file(self):
         try:
@@ -88,6 +116,8 @@ class Config:
                     elif line.startswith("FULLSCREEN="):
                         self.fullscreen = line.split("=")[1].strip().lower() == "true"
                     elif line.startswith("LAUNCHER_HOST="):
+                        if line.split("=")[1].strip() == "RANDOM":
+                            self.launcher_host = f"localhost:{find_open_port()}"
                         self.launcher_host = line.split("=")[1].strip()
             return True
         except FileNotFoundError:
@@ -98,24 +128,17 @@ class Config:
 
     def _generate_default_file(self):
         with open(self.filename, "w") as f:
+            f.write("# Config file for the Visualizer\n")
             f.write(f"FPS={self.fps}\n")
             f.write(f"RESOLUTION={self.resolution[0]}x{self.resolution[1]}\n")
             f.write(f"FULLSCREEN={'true' if self.fullscreen else 'false'}\n")
-            f.write(f"LAUNCHER_HOST={self.launcher_host}\n")
+            f.write(f"LAUNCHER_HOST=RANDOM\n")
 
 
 class Visualizer_Process:
     def __init__(
         self,
-        fps=30,
-        resolution=(1920, 1200),
-        fullscreen=False,
-        launcher_host="localhost:5128",
     ):
-        self.fps = fps
-        self.resolution = resolution
-        self.fullscreen = fullscreen
-        self.launcher_host = launcher_host
         self.script_path = "visualizer.py"
         self.process = None
         self.running = False
@@ -124,8 +147,9 @@ class Visualizer_Process:
         if not self.running:
             try:
                 # Create the string with a condition for --fullscreen
-                self.formatted_string = f"--fps {self.fps} --resolution {self.resolution[0]}x{self.resolution[1]} --launcher-host {self.launcher_host}"
-                if self.fullscreen:
+                print(config.launcher_host)
+                self.formatted_string = f"--fps {config.fps} --resolution {config.resolution[0]}x{config.resolution[1]} --launcher-host {config.launcher_host}"
+                if config.fullscreen:
                     self.formatted_string += " --fullscreen"
 
                 # Split the formatted string into a list of arguments
@@ -142,9 +166,18 @@ class Visualizer_Process:
                     close_fds=True,
                     start_new_session=True,
                 )
+
+                # Start thread to print the subprocess's output in real-time
+                thread = threading.Thread(target=self.print_output)
+                thread.start()
+
                 self.running = True
             except Exception as e:
                 print(f"Error starting visualizer: {e}")
+
+    def print_output(self):
+        for line in iter(self.process.stdout.readline, b""):
+            print(line.decode("utf-8").strip())
 
     def stop_visualizer(self):
         if self.running and self.process:
@@ -327,8 +360,22 @@ class visualizerSettings(tk.Frame):
         button1.pack(side="bottom")
 
 
+def Initialize_WebSocketServer(host, port):
+    RelayServer = relay.WebSocketServer(host=host, port=port)
+    print("Starting Relay Server...")
+    # RelayServer.start()
+    RelayServer.thread.start()
+    print(f"WebSocketServer started on thread {RelayServer.thread.name} on port {RelayServer.port}")
+    # print("Relay Server started!")
+    return RelayServer
+
+
 if __name__ == "__main__":
     config = Config()
+    
+    RelayServer = Initialize_WebSocketServer(config.host(), config.port())
+
+
 
     app = Controller()
     app.resizable(False, False)
@@ -336,5 +383,6 @@ if __name__ == "__main__":
 
     visualizer = Visualizer_Process()
 
-    app.protocol("WM_DELETE_WINDOW", on_closing)
+    app.protocol("WM_DELETE_WINDOW", on_closing)  # Remove parentheses here
+
     app.mainloop()

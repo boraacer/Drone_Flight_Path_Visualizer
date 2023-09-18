@@ -1,4 +1,5 @@
+# Config file for the Visualizer
 FPS=30
 RESOLUTION=1920x1200
 FULLSCREEN=false
-LAUNCHER_HOST=localhost:5128
+LAUNCHER_HOST=RANDOM
