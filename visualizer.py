@@ -93,80 +93,6 @@ class Config:
 config = Config()
 
 
-class WebSocketClient:
-    def __init__(self, url):
-        self.url = url
-        self.ws = None
-        self.connected = False
-        self.message = ""
-        self.last_ping_time = "ERROR"
-
-        self.connect()
-
-    def on_open(self, ws):
-        self.connected = True
-        print(DEBUG + "WebSocket connection opened")
-
-    def on_message(self, ws, message):
-        try:
-            print(DEBUG + f"Received message: {message}")
-            # process the message here
-        except Exception as e:
-            print(DEBUG + f"Error processing message: {e}")
-
-    def on_error(self, ws, error):
-        print(DEBUG + f"Error occurred: {error}")
-
-    def on_close(self, ws, close_status_code, close_msg):
-        self.connected = False
-        print(
-            DEBUG
-            + f"WebSocket connection closed with code {close_status_code}: {close_msg}"
-        )
-
-    def connect(self):
-        print(DEBUG + f"Connecting to {self.url}")
-        self.ws = websocket.WebSocketApp(
-            self.url,
-            on_open=self.on_open,
-            on_message=self.on_message,
-            on_error=self.on_error,
-            on_close=self.on_close,
-        )
-
-        wst = threading.Thread(target=self.ws.run_forever)
-        wst.daemon = True
-        wst.start()
-
-    def send_message(self, message):
-        if self.connected:
-            self.ws.send(message)
-        else:
-            print(DEBUG + "WebSocket is not connected. Cannot send message.")
-
-    def close(self):
-        if self.connected:
-            self.ws.close()
-
-    def ping(self):
-        if not self.connected or self.last_ping_time == "ERROR":
-            print("WebSocket is not connected. Cannot ping server.")
-            return "ERROR"
-        
-        current_time = time.time()
-
-        # Check if it's been at least a second since the last ping
-        if current_time - self.last_ping_time < 1:
-            print("Ping request too soon. Wait for at least 1 second between pings.")
-            return self.last_ping_time
-
-        
-
-
-        # Return the ping time
-        return 0
-
-
 class OpenGLViewport:
     def __init__(self, resolution):
         self.resolution = resolution
@@ -712,12 +638,11 @@ def render_text(x, y, text, color):
         glutBitmapCharacter(GLUT_BITMAP_8_BY_13, ord(character))
 
 
-def status_text(renderer, textures, clock, connection):
+def status_text(renderer, textures, clock, connection=None):
     def status_color(status):
         if status == "ERROR":
             return (255, 0, 0)  # Red
         return (0, 255, 0)  # Green
-
 
     Status_X_Pos = int(0.35 * config.resolution[1]) + 37
     text_entries = [
@@ -725,8 +650,8 @@ def status_text(renderer, textures, clock, connection):
         (
             300,
             Status_X_Pos - 0,
-            str(connection.ping()),
-            status_color(str(connection.ping())),
+            str("OK"),
+            status_color(str("OK")),
         ),
         (10, Status_X_Pos - 15, "   Joystick Connection: ", (255, 255, 255)),
         (300, Status_X_Pos - 15, "OK", status_color("OK")),
@@ -742,11 +667,17 @@ def status_text(renderer, textures, clock, connection):
     renderer.render(text_entries, textures)
 
 
-def main():
+def main(configuration=None):
     pygame.init()
     pygame.display.set_icon(pygame.image.load("assets/Visualizer_Icon.png"))
 
-    config.parse_command_line_args()
+    if configuration is not None:
+        config = configuration
+    else:
+        config = Config()
+
+    if __name__ == "__main__":
+        config.parse_command_line_args()
 
     display = config.resolution
 
@@ -779,9 +710,6 @@ def main():
     clock = pygame.time.Clock()
     target_fps = config.fps
 
-    # Create a WebSocketClient object to connect to the launcher
-    print(DEBUG + f"Connecting to launcher at {config.launcher_host}")
-    launcherConnection = WebSocketClient(f"ws://{config.launcher_host}")
     running = True
     opengl_viewport.render()
     while running:
@@ -790,7 +718,7 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
 
-        status_text(text_renderer, textures, clock, launcherConnection)
+        status_text(text_renderer, textures, clock)
 
         pygame.display.flip()
 
@@ -798,4 +726,5 @@ def main():
         clock.tick(target_fps)
 
 
-main()
+if __name__ == "__main__":
+    main()
