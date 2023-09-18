@@ -15,7 +15,6 @@ def get_joystick_list():
     else:
         for i in range(joystick_count):
             js = joystick.Joystick(0)
-            os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
             js.init()
             # Now you can use joystick functions
             name = js.get_name()
