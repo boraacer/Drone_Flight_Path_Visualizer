@@ -1,16 +1,16 @@
-import json
 import math
-import time
 from pygame.locals import *
 import pygame
+from launcher import Config
+from joystick_service import get_joystick_list
 from PIL import Image
 from OpenGL.GL import *
 from OpenGL.GLUT import *
+from OpenGL.GLUT import GLUT_BITMAP_8_BY_13
 from OpenGL.GLU import gluPerspective
-import websocket
-import threading
-import argparse
 
+
+config = Config()
 
 DEBUG = "Visualizer: "
 
@@ -47,50 +47,6 @@ def load_texture(filename):
     return tex_id
 
 
-class Config:
-    def __init__(self):
-        self.fps = 30
-        self.resolution = (1920, 1200)
-        self.fullscreen = False
-        self.launcher_host = "localhost:8765"
-
-    def parse_command_line_args(self):
-        parser = argparse.ArgumentParser(
-            description="Configuration options for your program"
-        )
-
-        # Define command-line arguments
-        parser.add_argument("--fps", type=int, default=30, help="Frames per second")
-        parser.add_argument(
-            "--resolution",
-            type=str,
-            default="1920x1200",
-            help="Screen resolution in the format WIDTHxHEIGHT",
-        )
-        parser.add_argument(
-            "--fullscreen", action="store_true", help="Enable fullscreen mode"
-        )
-        parser.add_argument(
-            "--launcher-host",
-            type=str,
-            default="localhost:5128",
-            help="Launcher host address",
-        )
-
-        args = parser.parse_args()
-
-        # Update instance variables with command-line arguments
-        self.fps = args.fps
-        width, height = map(int, args.resolution.split("x"))
-        self.resolution = (width, height)
-        self.fullscreen = args.fullscreen
-        self.launcher_host = args.launcher_host
-
-    def __str__(self):
-        return f"FPS={self.fps}\nRESOLUTION={self.resolution[0]}x{self.resolution[1]}\nFULLSCREEN={'true' if self.fullscreen else 'false'}\nLAUNCHER_HOST={self.launcher_host}"
-
-
-config = Config()
 
 
 class OpenGLViewport:
@@ -628,9 +584,6 @@ def draw_horizontal_slider(x, y, pitch_angle, width=240, height=20):
     glDisable(GL_BLEND)
 
 
-from OpenGL.GLUT import GLUT_BITMAP_8_BY_13
-
-
 def render_text(x, y, text, color):
     glColor3f(*color)
     glRasterPos2f(x, y)
@@ -668,6 +621,7 @@ def status_text(renderer, textures, clock, connection=None):
 
 
 def main(configuration=None):
+    print(DEBUG + "Starting Visualizer")
     pygame.init()
     pygame.display.set_icon(pygame.image.load("assets/Visualizer_Icon.png"))
 
@@ -675,9 +629,6 @@ def main(configuration=None):
         config = configuration
     else:
         config = Config()
-
-    if __name__ == "__main__":
-        config.parse_command_line_args()
 
     display = config.resolution
 

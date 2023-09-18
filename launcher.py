@@ -4,7 +4,7 @@ from tkinter import *
 from tkinter import messagebox
 import tkinter.filedialog as FD
 from PIL import Image, ImageOps, ImageTk
-import Worker_Runner
+from joystick_service import get_joystick_list
 
 TITLE_FONT = ("Verdana", 24)
 LARGE_FONT = ("Verdana", 12)
@@ -62,6 +62,7 @@ class Config:
         fps=30,
         resolution=(1920, 1200),
         fullscreen=False,
+        joystick=0,
     ):
         self.filename = filename
 
@@ -69,6 +70,9 @@ class Config:
         self.fps = fps
         self.resolution = resolution
         self.fullscreen = fullscreen
+        
+        # Joystick settings
+        self.joystick = joystick
 
         # Read from file or generate a new file if it doesn't exist
         if not self._load_from_file():
@@ -129,7 +133,7 @@ class Controller(tk.Tk):
         container.grid_rowconfigure(0, weight=1)
         container.grid_columnconfigure(0, weight=1)
         self.frames = {}
-        for F in (StartPage, Settings, visualizerSettings):
+        for F in (StartPage, Settings, visualizerSettings, JoystickSettings):
             page_name = F.__name__
             frame = F(parent=container, controller=self)
             self.frames[page_name] = frame
@@ -259,6 +263,14 @@ class Settings(tk.Frame):
         )
         button2.pack()
 
+        button3 = ttk.Button(
+            self,
+            text="Joystick Settings",
+            command=lambda: controller.show_frame("JoystickSettings"),
+            style="Dark.TButton",
+        )
+        button3.pack()
+
 
 class visualizerSettings(tk.Frame):
     """Visualizer Settings"""
@@ -360,7 +372,83 @@ class visualizerSettings(tk.Frame):
         self.fullscreen_var.set(config.fullscreen)
 
 
+class JoystickSettings(tk.Frame):
+    """Joystick Settings"""
+
+    def __init__(self, parent, controller):
+        tk.Frame.__init__(self, parent, bg="black")
+        self.joystick_list = []
+        
+        
+        
+        self.config = config
+
+        label = tk.Label(
+            self, text="Joystick Settings", font=TITLE_FONT, fg="#ffffff", bg="black"
+        )
+        label.grid(row=0, column=0, columnspan=3, pady=10)
+
+        # Joystick Selection
+        joystick_label = tk.Label(self, text="Select Joystick:", font=SMALL_FONT, fg="#ffffff", bg="black")
+        joystick_label.grid(row=1, column=0, pady=5, sticky="e")
+
+        self.joystick_combobox = ttk.Combobox(self, values=self.joystick_list)
+        self.joystick_combobox.grid(row=1, column=1, pady=5, padx=20, sticky="w")
+        self.refresh_joystick_list()
+
+        refresh_button = ttk.Button(
+            self,
+            text="Refresh",
+            command=self.refresh_joystick_list
+        )
+        refresh_button.grid(row=1, column=2, pady=5, padx=10)
+
+        save_button = ttk.Button(
+            self,
+            text="Save",
+            command=self.save_settings
+        )
+        save_button.grid(row=2, column=0, columnspan=3, pady=10)
+
+        back_button = ttk.Button(
+            self,
+            text="Back",
+            command=lambda: controller.show_frame("Settings"),
+        )
+        back_button.grid(row=3, column=0, columnspan=3, pady=10)
+
+        # Centering the grid in the frame
+        self.grid_rowconfigure(0, weight=1)
+        self.grid_rowconfigure(4, weight=1)
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_columnconfigure(3, weight=1)
+
+    def save_settings(self):
+        selected_index = self.joystick_combobox.current()
+        if selected_index == -1:
+            messagebox.showerror("Error", "Please select a joystick.")
+            return
+
+        selected_joystick = get_joystick_list[selected_index]
+        self.config.joystick = selected_joystick["id"]
+        messagebox.showinfo("Success", "Settings saved successfully!")
+
+    def refresh_joystick_list(self):
+        self.joystick_list = get_joystick_list()
+        joystick_names = []
+        print(self.joystick_list)
+        for i in self.joystick_list:
+            print(i)
+            joystick_names.append(i["name"])
+        
+        self.joystick_combobox['values'] = joystick_names
+        self.joystick_combobox.set('')  # Clear the current selection
+
+
 if __name__ == "__main__":
+    import Worker_Runner
+
+    print(DEBUG + "Starting Launcher")
     config = Config()
 
     visualizer = Worker_Runner.Visualizer_Process()
