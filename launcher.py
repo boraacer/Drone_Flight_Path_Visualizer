@@ -1,10 +1,10 @@
+import time
 import tkinter as tk
 from tkinter import ttk, StringVar
 from tkinter import *
 from tkinter import messagebox
 import tkinter.filedialog as FD
 from PIL import Image, ImageOps, ImageTk
-from joystick_service import get_joystick_list
 
 TITLE_FONT = ("Verdana", 24)
 LARGE_FONT = ("Verdana", 12)
@@ -63,6 +63,8 @@ class Config:
         resolution=(1920, 1200),
         fullscreen=False,
         joystick=0,
+        filter_threshold=0.05,
+        filter_factor=0.9,
     ):
         self.filename = filename
 
@@ -70,10 +72,12 @@ class Config:
         self.fps = fps
         self.resolution = resolution
         self.fullscreen = fullscreen
-        
+
         # Joystick settings
         self.joystick = joystick
-
+        self.filter_threshold = filter_threshold
+        self.filter_factor = filter_factor
+        
         # Read from file or generate a new file if it doesn't exist
         if not self._load_from_file():
             self._generate_default_file()
@@ -90,6 +94,12 @@ class Config:
                         self.resolution = (int(res[0]), int(res[1]))
                     elif line.startswith("FULLSCREEN="):
                         self.fullscreen = line.split("=")[1].strip().lower() == "true"
+                    elif line.startswith("JOYSTICK="):
+                        self.joystick = int(line.split("=")[1].strip())
+                    elif line.startswith("FILTER_THRESHOLD="):
+                        self.filter_threshold = float(line.split("=")[1].strip())
+                    elif line.startswith("FILTER_FACTOR="):
+                        self.filter_factor = float(line.split("=")[1].strip())
 
             return True
         except FileNotFoundError:
@@ -106,6 +116,9 @@ class Config:
                 f.write(f"FPS={self.fps}\n")
                 f.write(f"RESOLUTION={self.resolution[0]}x{self.resolution[1]}\n")
                 f.write(f"FULLSCREEN={'true' if self.fullscreen else 'false'}\n")
+                f.write(f"JOYSTICK={self.joystick}\n")
+                f.write(f"FILTER_THRESHOLD={self.filter_threshold}\n")
+                f.write(f"FILTER_FACTOR={self.filter_factor}\n")
                 # If you have more settings, you can add them here
         except Exception as e:
             print(f"Error saving config: {e}")
@@ -116,7 +129,9 @@ class Config:
             f.write(f"FPS={self.fps}\n")
             f.write(f"RESOLUTION={self.resolution[0]}x{self.resolution[1]}\n")
             f.write(f"FULLSCREEN={'true' if self.fullscreen else 'false'}\n")
-            f.write(f"LAUNCHER_HOST=RANDOM\n")
+            f.write(f"JOYSTICK=0")
+            f.write(f"FILTER_THRESHOLD={self.filter_threshold}\n")
+            f.write(f"FILTER_FACTOR={self.filter_factor}\n")
 
 
 class Controller(tk.Tk):
@@ -165,13 +180,32 @@ class StartPage(ttk.Frame):
             borderwidth=0,
         )
 
-        button = ttk.Button(
+        joystick_button_text = tk.StringVar()
+        joystick_button_text.set("Start Joystick")
+
+        def toggle_joystick():
+            if joystick.running:
+                joystick_button_text.set("Start Joystick")
+                joystick.stop_joystick()
+                
+                
+            else:
+                joystick_button_text.set("Stop Joystick")
+                joystick.run_joystick(config)
+                
+                while True: 
+                    time.sleep(.1)
+                    print("Data: ", joystick.get_data())
+                
+                
+
+        button1 = ttk.Button(
             self,
-            text="Start Joystick Service",
-            command=lambda: controller.show_frame("EncryptorText"),
+            textvariable=joystick_button_text,
+            command=lambda: toggle_joystick(),
             style="Dark.TButton",
         )
-        button.pack()
+        button1.pack()
 
         button2 = ttk.Button(
             self,
@@ -184,7 +218,7 @@ class StartPage(ttk.Frame):
         visualizer_button_text = tk.StringVar()
         visualizer_button_text.set("Start Visualizer")
 
-        def toggle_button():
+        def toggle_visualizer():
             if visualizer.running:
                 visualizer_button_text.set("Start Visualizer")
                 visualizer.stop_visualizer()
@@ -195,7 +229,7 @@ class StartPage(ttk.Frame):
         button3 = ttk.Button(
             self,
             textvariable=visualizer_button_text,
-            command=toggle_button,
+            command=toggle_visualizer,
             style="Dark.TButton",
         )
         button3.pack()
@@ -378,9 +412,8 @@ class JoystickSettings(tk.Frame):
     def __init__(self, parent, controller):
         tk.Frame.__init__(self, parent, bg="black")
         self.joystick_list = []
-        
-        
-        
+        self.joystick_names = []
+
         self.config = config
 
         label = tk.Label(
@@ -389,33 +422,70 @@ class JoystickSettings(tk.Frame):
         label.grid(row=0, column=0, columnspan=3, pady=10)
 
         # Joystick Selection
-        joystick_label = tk.Label(self, text="Select Joystick:", font=SMALL_FONT, fg="#ffffff", bg="black")
+        joystick_label = tk.Label(
+            self, text="Select Joystick:", font=SMALL_FONT, fg="#ffffff", bg="black"
+        )
         joystick_label.grid(row=1, column=0, pady=5, sticky="e")
-
-        self.joystick_combobox = ttk.Combobox(self, values=self.joystick_list)
-        self.joystick_combobox.grid(row=1, column=1, pady=5, padx=20, sticky="w")
         self.refresh_joystick_list()
 
+        self.joystick_combobox = ttk.Combobox(self, values=self.joystick_names)
+        self.joystick_combobox.grid(row=1, column=1, pady=5, padx=20, sticky="w")
+        try:
+            self.joystick_combobox.set(self.joystick_name[config.joystick])
+            self.joystick_combobox["values"] = self.joystick_name
+        except Exception as e:
+            print("Error setting joystick values:", e)
+
         refresh_button = ttk.Button(
-            self,
-            text="Refresh",
-            command=self.refresh_joystick_list
+            self, text="Refresh", command=self.refresh_joystick_list
         )
         refresh_button.grid(row=1, column=2, pady=5, padx=10)
 
-        save_button = ttk.Button(
+        # Filter Threshold
+        filter_threshold_label = tk.Label(
             self,
-            text="Save",
-            command=self.save_settings
+            text="Filter Threshold:",
+            font=SMALL_FONT,
+            fg="#ffffff",
+            bg="black",
         )
-        save_button.grid(row=2, column=0, columnspan=3, pady=10)
+        filter_threshold_label.grid(row=2, column=0, pady=5, sticky="e")
+        
+        self.filter_threshold_entry = tk.Entry(self, width=5)
+        
+        self.filter_threshold_entry.insert(0, str(config.filter_threshold))
+                
+        self.filter_threshold_entry.grid(row=2, column=1, pady=5, padx=20, sticky="w")
+        
+        # Filter Factor
+        filter_factor_label = tk.Label(
+            self,
+            text="Filter Factor:",
+            font=SMALL_FONT,
+            fg="#ffffff",
+            bg="black",
+        )
+        filter_factor_label.grid(row=3, column=0, pady=5, sticky="e")
+        
+        self.filter_factor_entry = tk.Entry(self, width=5)
+        
+        self.filter_factor_entry.insert(0, str(config.filter_factor))
+        
+        self.filter_factor_entry.grid(row=3, column=1, pady=5, padx=20, sticky="w")
+        
+        # Save and Back Buttons
+
+        save_button = ttk.Button(self, text="Save", command=self.save_settings)
+        save_button.grid(row=4, column=0, columnspan=3, pady=10)
 
         back_button = ttk.Button(
             self,
             text="Back",
             command=lambda: controller.show_frame("Settings"),
         )
-        back_button.grid(row=3, column=0, columnspan=3, pady=10)
+        back_button.grid(row=4, column=1, columnspan=3, pady=10)
+
+
 
         # Centering the grid in the frame
         self.grid_rowconfigure(0, weight=1)
@@ -428,21 +498,21 @@ class JoystickSettings(tk.Frame):
         if selected_index == -1:
             messagebox.showerror("Error", "Please select a joystick.")
             return
-
-        selected_joystick = get_joystick_list[selected_index]
-        self.config.joystick = selected_joystick["id"]
+        print(selected_index)
+        self.config.joystick = selected_index
+        
+        self.config.filter_threshold = float(self.filter_threshold_entry.get())
+        self.config.filter_factor = float(self.filter_factor_entry.get())
+    
+        self.config.save_to_file()
         messagebox.showinfo("Success", "Settings saved successfully!")
 
     def refresh_joystick_list(self):
+        from joystick_service import get_joystick_list
         self.joystick_list = get_joystick_list()
-        joystick_names = []
-        print(self.joystick_list)
+        self.joystick_name = []
         for i in self.joystick_list:
-            print(i)
-            joystick_names.append(i["name"])
-        
-        self.joystick_combobox['values'] = joystick_names
-        self.joystick_combobox.set('')  # Clear the current selection
+            self.joystick_name.append(i["name"])
 
 
 if __name__ == "__main__":
@@ -452,6 +522,7 @@ if __name__ == "__main__":
     config = Config()
 
     visualizer = Worker_Runner.Visualizer_Process()
+    joystick = Worker_Runner.Joystick_Process()
 
     app = Controller()
     app.resizable(False, False)
