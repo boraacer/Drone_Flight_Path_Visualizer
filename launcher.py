@@ -219,7 +219,7 @@ class StartPage(ttk.Frame):
         # Radio 
         
         radio_button_text = tk.StringVar()
-        radio_button_text.set("Start Radio")
+        radio_button_text.set("Start Radio Service")
 
         def toggle_radio():
             if visualizer.running:
