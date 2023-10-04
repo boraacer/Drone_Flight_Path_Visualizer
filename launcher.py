@@ -1,3 +1,4 @@
+from multiprocessing import Manager
 import time
 import tkinter as tk
 from tkinter import ttk, StringVar
@@ -5,6 +6,7 @@ from tkinter import *
 from tkinter import messagebox
 import tkinter.filedialog as FD
 from PIL import Image, ImageOps, ImageTk
+
 
 TITLE_FONT = ("Verdana", 24)
 LARGE_FONT = ("Verdana", 12)
@@ -65,6 +67,7 @@ class Config:
         joystick=0,
         filter_threshold=0.05,
         filter_factor=0.9,
+        serialport="COM3",
     ):
         self.filename = filename
 
@@ -78,6 +81,10 @@ class Config:
         self.filter_threshold = filter_threshold
         self.filter_factor = filter_factor
         
+        # Radio settings
+        self.serialport = serialport
+        self.power_level = 23
+
         # Read from file or generate a new file if it doesn't exist
         if not self._load_from_file():
             self._generate_default_file()
@@ -100,6 +107,10 @@ class Config:
                         self.filter_threshold = float(line.split("=")[1].strip())
                     elif line.startswith("FILTER_FACTOR="):
                         self.filter_factor = float(line.split("=")[1].strip())
+                    elif line.startswith("SERIALPORT="):
+                        self.serialport = line.split("=")[1].strip()
+                    elif line.startswith("POWERLEVEL="):
+                        self.power_level = int(line.split("=")[1].strip())
 
             return True
         except FileNotFoundError:
@@ -119,6 +130,8 @@ class Config:
                 f.write(f"JOYSTICK={self.joystick}\n")
                 f.write(f"FILTER_THRESHOLD={self.filter_threshold}\n")
                 f.write(f"FILTER_FACTOR={self.filter_factor}\n")
+                f.write(f"SERIALPORT={self.serialport}\n")
+                f.write(f"POWERLEVEL={self.power_level}\n")
                 # If you have more settings, you can add them here
         except Exception as e:
             print(f"Error saving config: {e}")
@@ -129,9 +142,11 @@ class Config:
             f.write(f"FPS={self.fps}\n")
             f.write(f"RESOLUTION={self.resolution[0]}x{self.resolution[1]}\n")
             f.write(f"FULLSCREEN={'true' if self.fullscreen else 'false'}\n")
-            f.write(f"JOYSTICK=0")
+            f.write(f"JOYSTICK=0\n")
             f.write(f"FILTER_THRESHOLD={self.filter_threshold}\n")
             f.write(f"FILTER_FACTOR={self.filter_factor}\n")
+            f.write(f"SERIALPORT={self.serialport}\n")
+            f.write(f"POWERLEVEL={self.power_level}\n")
 
 
 class Controller(tk.Tk):
@@ -148,7 +163,7 @@ class Controller(tk.Tk):
         container.grid_rowconfigure(0, weight=1)
         container.grid_columnconfigure(0, weight=1)
         self.frames = {}
-        for F in (StartPage, Settings, visualizerSettings, JoystickSettings):
+        for F in (StartPage, Settings, visualizerSettings, JoystickSettings, RadioSettings):
             page_name = F.__name__
             frame = F(parent=container, controller=self)
             self.frames[page_name] = frame
@@ -184,20 +199,14 @@ class StartPage(ttk.Frame):
         joystick_button_text.set("Start Joystick")
 
         def toggle_joystick():
+            
             if joystick.running:
                 joystick_button_text.set("Start Joystick")
                 joystick.stop_joystick()
-                
-                
+
             else:
                 joystick_button_text.set("Stop Joystick")
                 joystick.run_joystick(config)
-                
-                while True: 
-                    time.sleep(.1)
-                    print("Data: ", joystick.get_data())
-                
-                
 
         button1 = ttk.Button(
             self,
@@ -207,13 +216,26 @@ class StartPage(ttk.Frame):
         )
         button1.pack()
 
-        button2 = ttk.Button(
+        # Radio 
+        
+        radio_button_text = tk.StringVar()
+        radio_button_text.set("Start Radio")
+
+        def toggle_radio():
+            if visualizer.running:
+                radio_button_text.set("Start Radio Service")
+                visualizer.stop_visualizer()
+            else:
+                radio_button_text.set("Stop Radio Service")
+                visualizer.run_visualizer(config, joystick)
+
+        button4 = ttk.Button(
             self,
-            text="Start Radio Service",
-            command=lambda: controller.show_frame("DecryptorText"),
+            textvariable=radio_button_text,
+            command=toggle_radio,
             style="Dark.TButton",
         )
-        button2.pack()
+        button4.pack()
 
         visualizer_button_text = tk.StringVar()
         visualizer_button_text.set("Start Visualizer")
@@ -224,7 +246,7 @@ class StartPage(ttk.Frame):
                 visualizer.stop_visualizer()
             else:
                 visualizer_button_text.set("Stop Visualizer")
-                visualizer.run_visualizer(config)
+                visualizer.run_visualizer(config, joystick)
 
         button3 = ttk.Button(
             self,
@@ -233,6 +255,8 @@ class StartPage(ttk.Frame):
             style="Dark.TButton",
         )
         button3.pack()
+        
+
 
         inverted_gear_image = invert_image_color("assets/gear.png")
         resized_gear_image = inverted_gear_image.resize(
@@ -304,6 +328,14 @@ class Settings(tk.Frame):
             style="Dark.TButton",
         )
         button3.pack()
+        
+        button4 = ttk.Button(
+            self,
+            text="Radio Settings",
+            command=lambda: controller.show_frame("RadioSettings"),
+            style="Dark.TButton",
+        )
+        button4.pack()
 
 
 class visualizerSettings(tk.Frame):
@@ -450,13 +482,13 @@ class JoystickSettings(tk.Frame):
             bg="black",
         )
         filter_threshold_label.grid(row=2, column=0, pady=5, sticky="e")
-        
+
         self.filter_threshold_entry = tk.Entry(self, width=5)
-        
+
         self.filter_threshold_entry.insert(0, str(config.filter_threshold))
-                
+
         self.filter_threshold_entry.grid(row=2, column=1, pady=5, padx=20, sticky="w")
-        
+
         # Filter Factor
         filter_factor_label = tk.Label(
             self,
@@ -466,13 +498,13 @@ class JoystickSettings(tk.Frame):
             bg="black",
         )
         filter_factor_label.grid(row=3, column=0, pady=5, sticky="e")
-        
+
         self.filter_factor_entry = tk.Entry(self, width=5)
-        
+
         self.filter_factor_entry.insert(0, str(config.filter_factor))
-        
+
         self.filter_factor_entry.grid(row=3, column=1, pady=5, padx=20, sticky="w")
-        
+
         # Save and Back Buttons
 
         save_button = ttk.Button(self, text="Save", command=self.save_settings)
@@ -484,8 +516,6 @@ class JoystickSettings(tk.Frame):
             command=lambda: controller.show_frame("Settings"),
         )
         back_button.grid(row=4, column=1, columnspan=3, pady=10)
-
-
 
         # Centering the grid in the frame
         self.grid_rowconfigure(0, weight=1)
@@ -500,19 +530,111 @@ class JoystickSettings(tk.Frame):
             return
         print(selected_index)
         self.config.joystick = selected_index
-        
+
         self.config.filter_threshold = float(self.filter_threshold_entry.get())
         self.config.filter_factor = float(self.filter_factor_entry.get())
-    
+
         self.config.save_to_file()
         messagebox.showinfo("Success", "Settings saved successfully!")
 
     def refresh_joystick_list(self):
         from joystick_service import get_joystick_list
+
         self.joystick_list = get_joystick_list()
         self.joystick_name = []
         for i in self.joystick_list:
             self.joystick_name.append(i["name"])
+
+class RadioSettings(tk.Frame):
+    """Joystick Settings"""
+
+    def __init__(self, parent, controller):
+        tk.Frame.__init__(self, parent, bg="black")
+        self.serial_list = []
+        self.serial_name = []
+
+        self.config = config
+
+        label = tk.Label(
+            self, text="Radio Settings", font=TITLE_FONT, fg="#ffffff", bg="black"
+        )
+        label.grid(row=0, column=0, columnspan=3, pady=10)
+
+        # Joystick Selection
+        radio_label = tk.Label(
+            self, text="Select USB Device:", font=SMALL_FONT, fg="#ffffff", bg="black"
+        )
+        radio_label.grid(row=1, column=0, pady=5, sticky="e")
+        self.refresh_serial_list()
+
+        self.serial_combobox = ttk.Combobox(self, values=self.serial_name)
+        self.serial_combobox.grid(row=1, column=1, pady=5, padx=20, sticky="w")
+        try:
+            self.serial_combobox.set(config.serialport)
+            self.serial_combobox["values"] = self.serial_name
+        except Exception as e:
+            print("Error setting radio value:", e)
+
+        refresh_button = ttk.Button(
+            self, text="Refresh", command=self.refresh_serial_list
+        )
+        refresh_button.grid(row=1, column=2, pady=5, padx=10)
+
+        # Filter Threshold
+        power_level_label = tk.Label(
+            self,
+            text="Power Level (5 - 23):",
+            font=SMALL_FONT,
+            fg="#ffffff",
+            bg="black",
+        )
+        power_level_label.grid(row=2, column=0, pady=5, sticky="e")
+
+        self.power_level_entry = tk.Entry(self, width=5)
+
+        self.power_level_entry.insert(0, str(config.power_level))
+
+        self.power_level_entry.grid(row=2, column=1, pady=5, padx=20, sticky="w")
+
+
+        # Save and Back Buttons
+
+        save_button = ttk.Button(self, text="Save", command=self.save_settings)
+        save_button.grid(row=4, column=0, columnspan=3, pady=10)
+
+        back_button = ttk.Button(
+            self,
+            text="Back",
+            command=lambda: controller.show_frame("Settings"),
+        )
+        back_button.grid(row=4, column=1, columnspan=3, pady=10)
+
+        # Centering the grid in the frame
+        self.grid_rowconfigure(0, weight=1)
+        self.grid_rowconfigure(4, weight=1)
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_columnconfigure(3, weight=1)
+
+    def save_settings(self):
+        selected_index = self.serial_combobox.current()
+        if selected_index == -1:
+            messagebox.showerror("Error", "Please select a Radio.")
+            return
+        print(selected_index)
+        self.config.serialport =  self.serial_name[selected_index]
+        self.config.power_level = int(self.power_level_entry.get())
+
+
+        self.config.save_to_file()
+        messagebox.showinfo("Success", "Settings saved successfully!")
+
+    def refresh_serial_list(self):
+        from radio_service import find_serial
+
+        self.serial_list = find_serial()
+        self.serial_name = []
+        for i in self.serial_list:
+            self.serial_name.append(i)
 
 
 if __name__ == "__main__":
@@ -521,9 +643,14 @@ if __name__ == "__main__":
     print(DEBUG + "Starting Launcher")
     config = Config()
 
-    visualizer = Worker_Runner.Visualizer_Process()
-    joystick = Worker_Runner.Joystick_Process()
 
+    visualizer = Worker_Runner.Visualizer_Process()
+    
+    manager = Manager()
+    
+    joystick_process = manager.Namespace()
+    joystick = Worker_Runner.Joystick_Process()
+    
     app = Controller()
     app.resizable(False, False)
     app.rowconfigure(index=3, weight=1)

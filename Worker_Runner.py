@@ -6,19 +6,18 @@ from launcher import Config
 import visualizer
 import joystick_service as joystick
 
-
 class Visualizer_Process:
     def __init__(self):
         self.process = None
         self.running = False
 
-    def visualizer_function(self, config):
+    def visualizer_function(self, config, joystick_data):
         # This function will be run in the new process
         # Here, you'll need to call the main function or equivalent of visualizer.py
         # For this example, I'm assuming visualizer.py has a function called run_visualizer_script
-        visualizer.main(config)
+        visualizer.main(config, joystick_data)
 
-    def run_visualizer(self, config):
+    def run_visualizer(self, config, joystick_data):
         if not self.running:
             try:
                 # Start the visualizer script as a new process
@@ -26,7 +25,7 @@ class Visualizer_Process:
                     target=self.visualizer_function,
                     args=(
                         config,
-                        self.data,
+                        joystick_data,
                     ),
                 )
                 self.process.start()
@@ -91,7 +90,7 @@ class Joystick_Process:
 
     def get_data(self):
         with self.lock:
-            return self.data["axis_0"]
+            return self.data
 
     def joystick_function(self, config, data, lock):
         # This function will be run in the new process
@@ -116,6 +115,8 @@ class Joystick_Process:
                 self.running = True
             except Exception as e:
                 print(f"Error starting joystick process: {e}")
+                
+
 
     def stop_joystick(self):
         print("Stopping joystick process")

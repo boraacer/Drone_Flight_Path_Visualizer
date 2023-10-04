@@ -620,7 +620,8 @@ def status_text(renderer, textures, clock, connection=None):
     renderer.render(text_entries, textures)
 
 
-def main(configuration=None):
+def main(configuration=None, joystick_data=None):
+    
     print(DEBUG + "Starting Visualizer")
     pygame.init()
     pygame.display.set_icon(pygame.image.load("assets/Visualizer_Icon.png"))
@@ -675,6 +676,11 @@ def main(configuration=None):
 
         # Limit the frame rate
         clock.tick(target_fps)
+        
+        print(joystick_data)
+        joystick_data.get_data()
+        
+        
 
 
 if __name__ == "__main__":
