@@ -549,6 +549,16 @@ class RadioSettings(tk.Frame):
     """Joystick Settings"""
 
     def __init__(self, parent, controller):
+        
+        def refresh_serial_list():
+            from radio_service import find_serial
+
+            self.serial_list = find_serial()
+            self.serial_name = []
+            for i in self.serial_list:
+                self.serial_name.append(i)
+            self.serial_combobox["values"] = self.serial_name
+        
         tk.Frame.__init__(self, parent, bg="black")
         self.serial_list = []
         self.serial_name = []
@@ -565,10 +575,12 @@ class RadioSettings(tk.Frame):
             self, text="Select USB Device:", font=SMALL_FONT, fg="#ffffff", bg="black"
         )
         radio_label.grid(row=1, column=0, pady=5, sticky="e")
-        self.refresh_serial_list()
 
         self.serial_combobox = ttk.Combobox(self, values=self.serial_name)
         self.serial_combobox.grid(row=1, column=1, pady=5, padx=20, sticky="w")
+        
+        refresh_serial_list()
+
         try:
             self.serial_combobox.set(config.serialport)
             self.serial_combobox["values"] = self.serial_name
@@ -576,7 +588,7 @@ class RadioSettings(tk.Frame):
             print("Error setting radio value:", e)
 
         refresh_button = ttk.Button(
-            self, text="Refresh", command=self.refresh_serial_list
+            self, text="Refresh", command=refresh_serial_list
         )
         refresh_button.grid(row=1, column=2, pady=5, padx=10)
 
@@ -614,7 +626,9 @@ class RadioSettings(tk.Frame):
         self.grid_rowconfigure(4, weight=1)
         self.grid_columnconfigure(0, weight=1)
         self.grid_columnconfigure(3, weight=1)
+        
 
+            
     def save_settings(self):
         selected_index = self.serial_combobox.current()
         if selected_index == -1:
@@ -628,13 +642,7 @@ class RadioSettings(tk.Frame):
         self.config.save_to_file()
         messagebox.showinfo("Success", "Settings saved successfully!")
 
-    def refresh_serial_list(self):
-        from radio_service import find_serial
 
-        self.serial_list = find_serial()
-        self.serial_name = []
-        for i in self.serial_list:
-            self.serial_name.append(i)
 
 
 if __name__ == "__main__":
