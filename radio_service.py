@@ -20,9 +20,26 @@ def find_serial():
     return filtered_list
 
 
+class Radio_Data:
+    def __init__(self):
+        self.pitch = 0
+        self.roll = 0
+        self.yaw = 0
+        self.throttle = 0
+
+    def set(self, pitch, roll, yaw, throttle):
+        self.pitch = pitch
+        self.roll = roll
+        self.yaw = yaw
+        self.throttle = throttle
+
+    def __str__(self) -> str:
+        return f"Pitch: {self.pitch}, Roll: {self.roll}, Yaw: {self.yaw}, Throttle: {self.throttle}"
+
+
 class Connection:
-    def __init__(self, port, baudrate):
-        self.port = port
+    def __init__(self, config, baudrate=9600):
+        self.port = config.serialport
         self.baudrate = baudrate
         self.bytesize = serial.EIGHTBITS
         self.parity = serial.PARITY_NONE
@@ -33,7 +50,11 @@ class Connection:
         self.open()
 
     def open(self):
-        self.ser.port = self.port
+        if os.name == "posix" and os.uname().sysname == "Darwin":
+            self.ser.port = f"/dev/{self.port}"
+        else: 
+            print("Windows or other OS detected which is not supported yet.")
+
         self.ser.baudrate = self.baudrate
         self.ser.bytesize = self.bytesize
         self.ser.parity = self.parity
@@ -60,5 +81,11 @@ class Connection:
         return data
 
 
+def main(config, data, lock):
+    radio = Connection(config)
 
-
+    while True:
+        with lock:
+            radio.send(data.get_axis())
+            data["radio"] = radio.receive()
+            print(data)

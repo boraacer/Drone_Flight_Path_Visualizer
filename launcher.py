@@ -89,6 +89,7 @@ class Config:
         if not self._load_from_file():
             self._generate_default_file()
 
+
     def _load_from_file(self):
         try:
             with open(self.filename, "r") as f:
@@ -222,12 +223,12 @@ class StartPage(ttk.Frame):
         radio_button_text.set("Start Radio Service")
 
         def toggle_radio():
-            if visualizer.running:
+            if radio.running:
                 radio_button_text.set("Start Radio Service")
-                visualizer.stop_visualizer()
+                radio.stop_radio()
             else:
                 radio_button_text.set("Stop Radio Service")
-                visualizer.run_visualizer(config, joystick)
+                radio.run_radio(config, joystick)
 
         button4 = ttk.Button(
             self,
@@ -658,6 +659,9 @@ if __name__ == "__main__":
     
     joystick_process = manager.Namespace()
     joystick = Worker_Runner.Joystick_Process()
+    
+    radio_process = manager.Namespace()
+    radio = Worker_Runner.Radio_Process()
     
     app = Controller()
     app.resizable(False, False)

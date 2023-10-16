@@ -5,6 +5,8 @@ import time
 from launcher import Config
 import visualizer
 import joystick_service as joystick
+import radio_service as radio
+
 
 class Visualizer_Process:
     def __init__(self):
@@ -115,8 +117,6 @@ class Joystick_Process:
                 self.running = True
             except Exception as e:
                 print(f"Error starting joystick process: {e}")
-                
-
 
     def stop_joystick(self):
         print("Stopping joystick process")
@@ -150,3 +150,52 @@ if __name__ == "__main__":
     joystick_process.run_joystick(config)
 
     joystick_process.monitor_data()
+
+
+class Radio_Process:
+    def __init__(self):
+        self.process = None
+        self.running = False
+        manager = multiprocessing.Manager()
+        self.lock = manager.Lock()
+
+    def radio_function(self, config, data, lock):
+        # This function will be run in the new process
+        # Here, you'll need to call the main function or equivalent of visualizer.py
+        # For this example, I'm assuming visualizer.py has a function called run_visualizer_script
+        radio.main(config, data, lock)
+
+    def run_radio(self, config, radio_data):
+        if not self.running:
+            try:
+                # Start the visualizer script as a new process
+                self.process = multiprocessing.Process(
+                    target=self.radio_function,
+                    args=(
+                        config,
+                        radio_data,
+                        self.lock,
+                    ),
+                )
+                self.process.start()
+                self.running = True
+            except Exception as e:
+                print(f"Error starting Radio Service: {e}")
+
+    def stop_radio(self):
+        if self.running and self.process:
+            try:
+                # Terminate the process
+                self.process.terminate()
+                self.process.join()  # Wait for the process to finish
+                self.process = None
+                self.running = False
+            except Exception as e:
+                print(f"Error stopping Radio Service: {e}")
+
+    def retrieve_data(self):
+        while not self.queue.empty():
+            print(self.queue.get())
+
+    def send_data(self):
+        self.queue.put(self.radiodata.getaxis())

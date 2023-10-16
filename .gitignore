@@ -162,3 +162,5 @@ cython_debug/
 
 # Program files:
 config.txt
+
+.vscode
